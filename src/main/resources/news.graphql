@@ -1,0 +1,16 @@
+schema {
+    query: Query
+}
+
+type Query {
+    allNewsItems: [NewsItem]
+    newsItem(link: String): NewsItem
+}
+
+type NewsItem {
+    link: String
+    title: String
+    description: String
+    publishedDate: String
+    imageUrl: String
+}
