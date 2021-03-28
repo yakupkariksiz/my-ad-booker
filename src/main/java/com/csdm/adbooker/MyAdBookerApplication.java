@@ -12,13 +12,4 @@ public class MyAdBookerApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyAdBookerApplication.class, args);
     }
-
-
-    @Bean
-    CommandLineRunner runner(NewsItemService service) {
-        return args -> {
-            service.fetchRssFeeds();
-        };
-    }
-
 }

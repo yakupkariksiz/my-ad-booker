@@ -10,11 +10,15 @@ import com.rometools.rome.io.XmlReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URL;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -31,7 +35,8 @@ public class NewsItemService {
         this.repository = repository;
     }
 
-    //@Scheduled(fixedRate = 2000)
+    @Scheduled(fixedRate = 2000)
+    @Transactional
     public void fetchRssFeeds() {
         logger.info("Fetching rss feeds..");
         try {
@@ -43,9 +48,9 @@ public class NewsItemService {
             List<SyndEntry> entries = feed.getEntries();
 
             List<String> guids = entries.stream().map(SyndEntry::getUri).collect(Collectors.toList());
-            List<NewsItemDto> existingNewsItems = guids.stream().map(getFromDatabaseConvertToDto()).collect(Collectors.toList());
-
-            List<NewsItem> news = entries.stream().map(entry -> NewsItem.builder()
+            List<NewsItemDto> newsItemsFromDatabase = guids.stream()
+                    .filter(item -> repository.findByGuid(item) != null).map(getFromDatabaseConvertToDto()).collect(Collectors.toList());
+            List<NewsItemDto> newsItemsFromRss = entries.stream().map(entry -> NewsItemDto.builder()
                     .title(entry.getTitle())
                     .description(entry.getDescription().getValue())
                     .imageUrl(entry.getEnclosures().get(0).getUrl())
@@ -54,7 +59,39 @@ public class NewsItemService {
                             .toLocalDateTime())
                     .guid(entry.getUri())
                     .build()).collect(Collectors.toList());
-            repository.saveAll(news);
+
+            Map<String, NewsItemDto> newsItemsMapFromDb = newsItemsFromDatabase.stream().collect(Collectors.toMap(NewsItemDto::getGuid, Function.identity()));
+            Map<String, NewsItemDto> newsItemsMapFromRss = newsItemsFromRss.stream().collect(Collectors.toMap(NewsItemDto::getGuid, Function.identity()));
+
+            List<NewsItem> entities = new ArrayList<>();
+            for (String guidFromRss : newsItemsMapFromRss.keySet()) {
+                NewsItemDto newsItemFromDb = newsItemsMapFromDb.get(guidFromRss);
+                NewsItemDto newsItemFromRss = newsItemsMapFromRss.get(guidFromRss);
+                if (newsItemFromDb == null) {
+                    // new item
+                    entities.add(NewsItem.builder().title(newsItemFromRss.getTitle())
+                            .guid(newsItemFromRss.getGuid())
+                            .description(newsItemFromRss.getDescription())
+                            .publishedDate(newsItemFromRss.getPublishedDate())
+                            .imageUrl(newsItemFromRss.getImageUrl()).build());
+                } else {
+                    // update item
+                    NewsItem willBeUpdated = repository.findByGuid(newsItemFromDb.getGuid());
+                    if (!newsItemFromDb.getTitle().equals(newsItemFromRss.getTitle())) {
+                        willBeUpdated.setTitle(newsItemFromRss.getTitle());
+                    }
+                    if (!newsItemFromDb.getDescription().equals(newsItemFromRss.getDescription())) {
+                        willBeUpdated.setDescription(newsItemFromRss.getDescription());
+                    }
+                    if (!newsItemFromDb.getPublishedDate().equals(newsItemFromRss.getPublishedDate())) {
+                        willBeUpdated.setPublishedDate(newsItemFromRss.getPublishedDate());
+                    }
+                    if (!newsItemFromDb.getImageUrl().equals(newsItemFromRss.getImageUrl())) {
+                        willBeUpdated.setImageUrl(newsItemFromRss.getImageUrl());
+                    }
+                }
+            }
+            repository.saveAll(entities);
         } catch (Exception ex) {
             logger.error(ex.getMessage());
         }
