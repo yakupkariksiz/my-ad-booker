@@ -8,7 +8,7 @@ type Query {
 }
 
 type NewsItem {
-    link: String
+    guid: String
     title: String
     description: String
     publishedDate: String
