@@ -7,97 +7,148 @@ import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
 import com.rometools.rome.io.SyndFeedInput;
 import com.rometools.rome.io.XmlReader;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URL;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static com.csdm.adbooker.model.NewsItemParameters.NEWS_FEED_URL;
+import static com.csdm.adbooker.model.NewsItemParameters.RSS_FEED_INTERVAL_TIME;
+import static com.csdm.adbooker.model.NewsItemParameters.RSS_FEED_SIZE_THRESHOLD;
+
+@Slf4j
 @EnableScheduling
 @Service
 public class NewsItemService {
 
-    private Logger logger = LoggerFactory.getLogger(NewsItemService.class);
-    private static final String NEWS_FEED_URL = "http://feeds.nos.nl/nosjournaal?format=xml";
+    @Autowired
+    private NewsItemRepository repository;
 
-    private final NewsItemRepository repository;
-
-    public NewsItemService(NewsItemRepository repository) {
-        this.repository = repository;
-    }
-
-    @Scheduled(fixedRate = 2000)
+    @Scheduled(fixedRate = RSS_FEED_INTERVAL_TIME)
     @Transactional
     public void fetchRssFeeds() {
-        logger.info("Fetching rss feeds..");
+        log.info("Started fetching rss feeds at {}", LocalDateTime.now());
+
+        List<SyndEntry> entries = makeHttpRequestAndGetRssEntries();
+        List<String> guids = collectGuidsFrom(entries);
+
+        List<NewsItemDto> newsItemsFromDb = getNewsItemsFromDbBy(guids);
+        List<NewsItemDto> newsItemsFromRss = convertRssEntriesDtos(entries);
+
+        Map<String, NewsItemDto> newsItemsMapFromDb = newsItemsFromDb.stream()
+                .collect(Collectors.toMap(
+                        NewsItemDto::getGuid,
+                        Function.identity()));
+        Map<String, NewsItemDto> newsItemsMapFromRss = newsItemsFromRss.stream()
+                .collect(Collectors.toMap(
+                        NewsItemDto::getGuid,
+                        Function.identity()));
+
+        List<NewsItem> entities = new ArrayList<>();
+        for (String guidFromRss : newsItemsMapFromRss.keySet()) {
+            NewsItemDto newsItemFromDb = newsItemsMapFromDb.get(guidFromRss);
+            NewsItemDto newsItemFromRss = newsItemsMapFromRss.get(guidFromRss);
+            if (newsItemFromDb == null) {
+                // new item
+                entities.add(NewsItem.builder().title(newsItemFromRss.getTitle())
+                        .guid(newsItemFromRss.getGuid())
+                        .description(newsItemFromRss.getDescription())
+                        .publishedDate(newsItemFromRss.getPublishedDate())
+                        .imageUrl(newsItemFromRss.getImageUrl()).build());
+            } else {
+                // update item
+                updateItem(newsItemFromDb, newsItemFromRss);
+            }
+        }
+        repository.saveAll(entities);
+        log.info("Finished fetching rss feeds at {}", LocalDateTime.now());
+    }
+
+    private void updateItem(NewsItemDto newsItemFromDb, NewsItemDto newsItemFromRss) {
+        NewsItem willBeUpdated = repository.findByGuid(newsItemFromDb.getGuid());
+        if (!newsItemFromDb.getTitle().equals(newsItemFromRss.getTitle())) {
+            willBeUpdated.setTitle(newsItemFromRss.getTitle());
+        }
+        if (!newsItemFromDb.getDescription().equals(newsItemFromRss.getDescription())) {
+            willBeUpdated.setDescription(newsItemFromRss.getDescription());
+        }
+        if (!newsItemFromDb.getPublishedDate().equals(newsItemFromRss.getPublishedDate())) {
+            willBeUpdated.setPublishedDate(newsItemFromRss.getPublishedDate());
+        }
+        if (!newsItemFromDb.getImageUrl().equals(newsItemFromRss.getImageUrl())) {
+            willBeUpdated.setImageUrl(newsItemFromRss.getImageUrl());
+        }
+    }
+
+    @NotNull
+    private List<NewsItemDto> convertRssEntriesDtos(List<SyndEntry> entries) {
+        return entries.stream()
+                .limit(RSS_FEED_SIZE_THRESHOLD)
+                .map(entry -> NewsItemDto.builder()
+                        .title(entry.getTitle())
+                        .description(entry.getDescription().getValue())
+                        .imageUrl(entry.getEnclosures().get(0).getUrl())
+                        .publishedDate(entry.getPublishedDate().toInstant()
+                                .atZone(ZoneId.systemDefault())
+                                .toLocalDateTime())
+                        .guid(entry.getUri())
+                        .build()).collect(Collectors.toList());
+    }
+
+    @NotNull
+    private List<NewsItemDto> getNewsItemsFromDbBy(List<String> guids) {
+        return guids
+                .stream()
+                .filter(ifGuidExistInDb())
+                .map(getFromDbAndConvertToDto())
+                .collect(Collectors.toList());
+    }
+
+    @NotNull
+    private List<String> collectGuidsFrom(List<SyndEntry> entries) {
+        return entries.stream()
+                .limit(RSS_FEED_SIZE_THRESHOLD)
+                .map(SyndEntry::getUri)
+                .collect(Collectors.toList());
+    }
+
+    @NotNull
+    private Predicate<String> ifGuidExistInDb() {
+        return item -> repository.findByGuid(item) != null;
+    }
+
+    private List<SyndEntry> makeHttpRequestAndGetRssEntries() {
+        List<SyndEntry> entries = null;
         try {
             URL feedUrl = new URL(NEWS_FEED_URL);
 
             SyndFeedInput input = new SyndFeedInput();
-            SyndFeed feed = input.build(new XmlReader(feedUrl));
+            SyndFeed feed = null;
+            feed = input.build(new XmlReader(feedUrl));
 
-            List<SyndEntry> entries = feed.getEntries();
-
-            List<String> guids = entries.stream().map(SyndEntry::getUri).collect(Collectors.toList());
-            List<NewsItemDto> newsItemsFromDatabase = guids.stream()
-                    .filter(item -> repository.findByGuid(item) != null).map(getFromDatabaseConvertToDto()).collect(Collectors.toList());
-            List<NewsItemDto> newsItemsFromRss = entries.stream().map(entry -> NewsItemDto.builder()
-                    .title(entry.getTitle())
-                    .description(entry.getDescription().getValue())
-                    .imageUrl(entry.getEnclosures().get(0).getUrl())
-                    .publishedDate(feed.getPublishedDate().toInstant()
-                            .atZone(ZoneId.systemDefault())
-                            .toLocalDateTime())
-                    .guid(entry.getUri())
-                    .build()).collect(Collectors.toList());
-
-            Map<String, NewsItemDto> newsItemsMapFromDb = newsItemsFromDatabase.stream().collect(Collectors.toMap(NewsItemDto::getGuid, Function.identity()));
-            Map<String, NewsItemDto> newsItemsMapFromRss = newsItemsFromRss.stream().collect(Collectors.toMap(NewsItemDto::getGuid, Function.identity()));
-
-            List<NewsItem> entities = new ArrayList<>();
-            for (String guidFromRss : newsItemsMapFromRss.keySet()) {
-                NewsItemDto newsItemFromDb = newsItemsMapFromDb.get(guidFromRss);
-                NewsItemDto newsItemFromRss = newsItemsMapFromRss.get(guidFromRss);
-                if (newsItemFromDb == null) {
-                    // new item
-                    entities.add(NewsItem.builder().title(newsItemFromRss.getTitle())
-                            .guid(newsItemFromRss.getGuid())
-                            .description(newsItemFromRss.getDescription())
-                            .publishedDate(newsItemFromRss.getPublishedDate())
-                            .imageUrl(newsItemFromRss.getImageUrl()).build());
-                } else {
-                    // update item
-                    NewsItem willBeUpdated = repository.findByGuid(newsItemFromDb.getGuid());
-                    if (!newsItemFromDb.getTitle().equals(newsItemFromRss.getTitle())) {
-                        willBeUpdated.setTitle(newsItemFromRss.getTitle());
-                    }
-                    if (!newsItemFromDb.getDescription().equals(newsItemFromRss.getDescription())) {
-                        willBeUpdated.setDescription(newsItemFromRss.getDescription());
-                    }
-                    if (!newsItemFromDb.getPublishedDate().equals(newsItemFromRss.getPublishedDate())) {
-                        willBeUpdated.setPublishedDate(newsItemFromRss.getPublishedDate());
-                    }
-                    if (!newsItemFromDb.getImageUrl().equals(newsItemFromRss.getImageUrl())) {
-                        willBeUpdated.setImageUrl(newsItemFromRss.getImageUrl());
-                    }
-                }
-            }
-            repository.saveAll(entities);
+            entries = feed.getEntries();
+            entries.sort(Comparator.comparing(SyndEntry::getPublishedDate).reversed());
         } catch (Exception ex) {
-            logger.error(ex.getMessage());
+            log.error(ex.getMessage());
         }
+        return entries;
     }
 
-    private Function<String, NewsItemDto> getFromDatabaseConvertToDto() {
+    private Function<String, NewsItemDto> getFromDbAndConvertToDto() {
         return guid -> {
             NewsItem existingEntity = repository.findByGuid(guid);
             NewsItemDto existingNewsItem = NewsItemDto

@@ -1,0 +1,5 @@
+
+type Query {
+    allNewsItems: [NewsItem]
+    newsItem(guid: String): NewsItem
+}
