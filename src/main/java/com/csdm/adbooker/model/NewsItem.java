@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 @Setter
 @Getter
 @NoArgsConstructor
+@Table(indexes = @Index(columnList = "guid"))
 @Entity
 public class NewsItem implements Serializable {
 
@@ -20,7 +21,7 @@ public class NewsItem implements Serializable {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long id;
 
-    @Column
+    @Column(unique = true)
     private String guid;
 
     @Column
