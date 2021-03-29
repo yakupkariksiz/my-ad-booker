@@ -18,10 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -44,41 +44,63 @@ public class NewsItemService {
         log.info("Started fetching rss feeds at {}", LocalDateTime.now());
 
         List<SyndEntry> entries = makeHttpRequestAndGetRssEntries();
-        List<String> guids = collectGuidsFrom(entries);
+        List<String> latestGuidsFromRssFeeds = collectGuidsFrom(entries);
 
-        List<NewsItemDto> newsItemsFromDb = getNewsItemsFromDbBy(guids);
-        List<NewsItemDto> newsItemsFromRss = convertRssEntriesDtos(entries);
+        List<NewsItemDto> newsItemsFromDb = getNewsItemsFromDbBy(latestGuidsFromRssFeeds);
+        List<NewsItemDto> newsItemsFromRss = convertRssEntryToDto(entries);
 
-        Map<String, NewsItemDto> newsItemsMapFromDb = newsItemsFromDb.stream()
-                .collect(Collectors.toMap(
-                        NewsItemDto::getGuid,
-                        Function.identity()));
-        Map<String, NewsItemDto> newsItemsMapFromRss = newsItemsFromRss.stream()
-                .collect(Collectors.toMap(
-                        NewsItemDto::getGuid,
-                        Function.identity()));
+        Map<String, NewsItemDto> newsItemsMapFromDb = createMapByItemsFrom(newsItemsFromDb);
+        Map<String, NewsItemDto> newsItemsMapFromRss = createMapByItemsFrom(newsItemsFromRss);
 
-        List<NewsItem> entities = new ArrayList<>();
-        for (String guidFromRss : newsItemsMapFromRss.keySet()) {
-            NewsItemDto newsItemFromDb = newsItemsMapFromDb.get(guidFromRss);
-            NewsItemDto newsItemFromRss = newsItemsMapFromRss.get(guidFromRss);
-            if (newsItemFromDb == null) {
-                // new item
-                entities.add(NewsItem.builder().title(newsItemFromRss.getTitle())
-                        .guid(newsItemFromRss.getGuid())
-                        .description(newsItemFromRss.getDescription())
-                        .publishedDate(newsItemFromRss.getPublishedDate())
-                        .imageUrl(newsItemFromRss.getImageUrl()).build());
-            } else {
-                // update item
-                updateItem(newsItemFromDb, newsItemFromRss);
-            }
-        }
-        repository.saveAll(entities);
+        updateItemsInDbByRssFeeds(latestGuidsFromRssFeeds, newsItemsMapFromDb, newsItemsMapFromRss);
+        saveNewItemsInDb(latestGuidsFromRssFeeds, newsItemsMapFromDb, newsItemsMapFromRss);
+
         log.info("Finished fetching rss feeds at {}", LocalDateTime.now());
     }
 
-    private void updateItem(NewsItemDto newsItemFromDb, NewsItemDto newsItemFromRss) {
+    private void saveNewItemsInDb(List<String> latestGuidsFromRssFeeds, Map<String, NewsItemDto> newsItemsMapFromDb, Map<String, NewsItemDto> newsItemsMapFromRss) {
+        List<NewsItem> entities = latestGuidsFromRssFeeds.stream()
+                .filter(ifItemExistsInDb(newsItemsMapFromDb))
+                .map(getNewsItemFunction(newsItemsMapFromRss))
+                .collect(Collectors.toList());
+
+        repository.saveAll(entities);
+    }
+
+    private void updateItemsInDbByRssFeeds(List<String> latestGuidsFromRssFeeds, Map<String, NewsItemDto> newsItemsMapFromDb, Map<String, NewsItemDto> newsItemsMapFromRss) {
+        latestGuidsFromRssFeeds.stream()
+                .filter(ifItemDoesNotExistInDb(newsItemsMapFromDb))
+                .forEach(doUpdateIfRequired(newsItemsMapFromDb, newsItemsMapFromRss));
+    }
+
+    private Consumer<String> doUpdateIfRequired(Map<String, NewsItemDto> newsItemsMapFromDb, Map<String, NewsItemDto> newsItemsMapFromRss) {
+        return guid -> updateItemIfRequired(newsItemsMapFromDb.get(guid), newsItemsMapFromRss.get(guid));
+    }
+
+    private Predicate<String> ifItemExistsInDb(Map<String, NewsItemDto> newsItemsMapFromDb) {
+        return guid -> newsItemsMapFromDb.get(guid) == null;
+    }
+
+    private Predicate<String> ifItemDoesNotExistInDb(Map<String, NewsItemDto> newsItemsMapFromDb) {
+        return guid -> newsItemsMapFromDb.get(guid) != null;
+    }
+
+    private Function<String, NewsItem> getNewsItemFunction(Map<String, NewsItemDto> newsItemsMapFromRss) {
+        return guid -> NewsItem.builder().title(newsItemsMapFromRss.get(guid).getTitle())
+                .guid(newsItemsMapFromRss.get(guid).getGuid())
+                .description(newsItemsMapFromRss.get(guid).getDescription())
+                .publishedDate(newsItemsMapFromRss.get(guid).getPublishedDate())
+                .imageUrl(newsItemsMapFromRss.get(guid).getImageUrl()).build();
+    }
+
+    private Map<String, NewsItemDto> createMapByItemsFrom(List<NewsItemDto> newsItemsFromDb) {
+        return newsItemsFromDb.stream()
+                .collect(Collectors.toMap(
+                        NewsItemDto::getGuid,
+                        Function.identity()));
+    }
+
+    private void updateItemIfRequired(NewsItemDto newsItemFromDb, NewsItemDto newsItemFromRss) {
         NewsItem willBeUpdated = repository.findByGuid(newsItemFromDb.getGuid());
 
         updateTitleIfChanged(newsItemFromDb.getTitle(), newsItemFromRss.getTitle(), willBeUpdated);
@@ -108,14 +130,14 @@ public class NewsItemService {
     }
 
     private void updateImageUrlIfChanged(String imageUrlFromDb,
-                                         String imageUrlFromRss,NewsItem willBeUpdated) {
+                                         String imageUrlFromRss, NewsItem willBeUpdated) {
         if (!imageUrlFromDb.equals(imageUrlFromRss)) {
             willBeUpdated.setImageUrl(imageUrlFromRss);
         }
     }
 
     @NotNull
-    private List<NewsItemDto> convertRssEntriesDtos(List<SyndEntry> entries) {
+    private List<NewsItemDto> convertRssEntryToDto(List<SyndEntry> entries) {
         return entries.stream()
                 .limit(RSS_FEED_SIZE_THRESHOLD)
                 .map(entry -> NewsItemDto.builder()
