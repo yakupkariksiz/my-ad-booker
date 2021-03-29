@@ -10,4 +10,4 @@ Technologies: Java SE 11, Spring Boot 2.4.4, Spring Web, Spring Data JPA, Lombok
 1. Download the my-ad-booker application and go to the root path. 
 2. Type `mvn clean package` and execute it in the terminal. 
 3. Type `java -jar target/my-ad-booker-0.0.1-SNAPSHOT.jar` and execute it to start up the application.
-4. Open the [link to GraphiQL](http://localhost:8080/graphiql) to query api based on provided **Queries**.
+4. Open the [GraphiQL](http://localhost:8080/graphiql) to query api based on provided **Queries**.
