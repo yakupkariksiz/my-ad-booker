@@ -80,17 +80,37 @@ public class NewsItemService {
 
     private void updateItem(NewsItemDto newsItemFromDb, NewsItemDto newsItemFromRss) {
         NewsItem willBeUpdated = repository.findByGuid(newsItemFromDb.getGuid());
-        if (!newsItemFromDb.getTitle().equals(newsItemFromRss.getTitle())) {
-            willBeUpdated.setTitle(newsItemFromRss.getTitle());
+
+        updateTitleIfChanged(newsItemFromDb.getTitle(), newsItemFromRss.getTitle(), willBeUpdated);
+        updateDescriptionIfChanged(newsItemFromDb.getDescription(), newsItemFromRss.getDescription(), willBeUpdated);
+        updatePublishedDateIfChanged(newsItemFromDb.getPublishedDate(), newsItemFromRss.getPublishedDate(), willBeUpdated);
+        updateImageUrlIfChanged(newsItemFromDb.getImageUrl(), newsItemFromRss.getImageUrl(), willBeUpdated);
+    }
+
+    private void updateTitleIfChanged(String titleFromDb, String titleFromRss, NewsItem willBeUpdated) {
+        if (!titleFromDb.equals(titleFromRss)) {
+            willBeUpdated.setTitle(titleFromRss);
         }
-        if (!newsItemFromDb.getDescription().equals(newsItemFromRss.getDescription())) {
-            willBeUpdated.setDescription(newsItemFromRss.getDescription());
+    }
+
+    private void updateDescriptionIfChanged(String descriptionFromDb,
+                                            String descriptionFromRss, NewsItem willBeUpdated) {
+        if (!descriptionFromDb.equals(descriptionFromRss)) {
+            willBeUpdated.setDescription(descriptionFromRss);
         }
-        if (!newsItemFromDb.getPublishedDate().equals(newsItemFromRss.getPublishedDate())) {
-            willBeUpdated.setPublishedDate(newsItemFromRss.getPublishedDate());
+    }
+
+    private void updatePublishedDateIfChanged(LocalDateTime publishedDateFromDb,
+                                              LocalDateTime publishedDateFromRss, NewsItem willBeUpdated) {
+        if (!publishedDateFromDb.equals(publishedDateFromRss)) {
+            willBeUpdated.setPublishedDate(publishedDateFromRss);
         }
-        if (!newsItemFromDb.getImageUrl().equals(newsItemFromRss.getImageUrl())) {
-            willBeUpdated.setImageUrl(newsItemFromRss.getImageUrl());
+    }
+
+    private void updateImageUrlIfChanged(String imageUrlFromDb,
+                                         String imageUrlFromRss,NewsItem willBeUpdated) {
+        if (!imageUrlFromDb.equals(imageUrlFromRss)) {
+            willBeUpdated.setImageUrl(imageUrlFromRss);
         }
     }
 
