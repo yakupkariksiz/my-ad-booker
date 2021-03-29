@@ -3,4 +3,9 @@ spring:
     console:
       enabled: true
   datasource:
-    url: jdbc:h2:mem:my-ad-booker-ds
+    url: jdbc:h2:mem:my-ad-booker-ds;DB_CLOSE_ON_EXIT=FALSE
+graphql:
+  servlet:
+    websocket:
+      enabled: false #this configuration is added for the issue --https://github.com/graphql-java-kickstart/graphql-spring-boot/issues/165
+
