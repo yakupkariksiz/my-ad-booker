@@ -23,4 +23,14 @@ Technologies: Java SE 11, Spring Boot 2.4.4, Spring Web, Spring Data JPA, Lombok
     publishedDate
   }
 }
+
+{
+  newsItem(guid: "https://nos.nl/l/2374830"){
+    guid
+    title
+    publishedDate
+    imageUrl
+    description
+  }
+}
 ```
