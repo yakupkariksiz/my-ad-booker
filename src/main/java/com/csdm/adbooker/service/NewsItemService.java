@@ -38,12 +38,15 @@ public class NewsItemService {
     @Autowired
     private NewsItemRepository repository;
 
+    @Autowired
+    private RssFetcher rssFetcher;
+
     @Scheduled(fixedRate = RSS_FEED_INTERVAL_TIME)
     @Transactional
     public void fetchRssFeeds() {
         log.info("Started fetching rss feeds at {}", LocalDateTime.now());
 
-        List<SyndEntry> entries = makeHttpRequestAndGetRssEntries();
+        List<SyndEntry> entries = rssFetcher.makeHttpRequestAndGetRssEntries();
         List<String> latestGuidsFromRssFeeds = collectGuidsFrom(entries);
 
         List<NewsItemDto> newsItemsFromDb = getNewsItemsFromDbBy(latestGuidsFromRssFeeds);
@@ -173,22 +176,7 @@ public class NewsItemService {
         return item -> repository.findByGuid(item) != null;
     }
 
-    private List<SyndEntry> makeHttpRequestAndGetRssEntries() {
-        List<SyndEntry> entries = null;
-        try {
-            URL feedUrl = new URL(NEWS_FEED_URL);
 
-            SyndFeedInput input = new SyndFeedInput();
-            SyndFeed feed = null;
-            feed = input.build(new XmlReader(feedUrl));
-
-            entries = feed.getEntries();
-            entries.sort(Comparator.comparing(SyndEntry::getPublishedDate).reversed());
-        } catch (Exception ex) {
-            log.error(ex.getMessage());
-        }
-        return entries;
-    }
 
     private Function<String, NewsItemDto> getFromDbAndConvertToDto() {
         return guid -> {
