@@ -4,9 +4,6 @@ import com.csdm.adbooker.model.NewsItem;
 import com.csdm.adbooker.model.NewsItemDto;
 import com.csdm.adbooker.repository.NewsItemRepository;
 import com.rometools.rome.feed.synd.SyndEntry;
-import com.rometools.rome.feed.synd.SyndFeed;
-import com.rometools.rome.io.SyndFeedInput;
-import com.rometools.rome.io.XmlReader;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,18 +12,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static com.csdm.adbooker.model.NewsItemParameters.NEWS_FEED_URL;
 import static com.csdm.adbooker.model.NewsItemParameters.RSS_FEED_INTERVAL_TIME;
 import static com.csdm.adbooker.model.NewsItemParameters.RSS_FEED_SIZE_THRESHOLD;
 
@@ -37,6 +30,9 @@ public class NewsItemService {
 
     @Autowired
     private NewsItemSavingService savingService;
+
+    @Autowired
+    private NewsItemUpdatingService updatingService;
 
     @Autowired
     private NewsItemRepository repository;
@@ -58,71 +54,17 @@ public class NewsItemService {
         Map<String, NewsItemDto> newsItemsMapFromDb = createMapByItemsFrom(newsItemsFromDb);
         Map<String, NewsItemDto> newsItemsMapFromRss = createMapByItemsFrom(newsItemsFromRss);
 
-        updateItemsInDbByRssFeeds(latestGuidsFromRssFeeds, newsItemsMapFromDb, newsItemsMapFromRss);
+        updatingService.updateItemsInDbByRssFeeds(latestGuidsFromRssFeeds, newsItemsMapFromDb, newsItemsMapFromRss);
         savingService.saveNewItemsInDb(latestGuidsFromRssFeeds, newsItemsMapFromDb, newsItemsMapFromRss);
 
         log.info("Finished fetching rss feeds at {}", LocalDateTime.now());
     }
-
-    private void updateItemsInDbByRssFeeds(List<String> latestGuidsFromRssFeeds, Map<String, NewsItemDto> newsItemsMapFromDb, Map<String, NewsItemDto> newsItemsMapFromRss) {
-        latestGuidsFromRssFeeds.stream()
-                .filter(ifItemDoesNotExistInDb(newsItemsMapFromDb))
-                .forEach(doUpdateIfRequired(newsItemsMapFromDb, newsItemsMapFromRss));
-    }
-
-    private Consumer<String> doUpdateIfRequired(Map<String, NewsItemDto> newsItemsMapFromDb, Map<String, NewsItemDto> newsItemsMapFromRss) {
-        return guid -> updateItemIfRequired(newsItemsMapFromDb.get(guid), newsItemsMapFromRss.get(guid));
-    }
-
-
-
-    private Predicate<String> ifItemDoesNotExistInDb(Map<String, NewsItemDto> newsItemsMapFromDb) {
-        return guid -> newsItemsMapFromDb.get(guid) != null;
-    }
-
-
 
     private Map<String, NewsItemDto> createMapByItemsFrom(List<NewsItemDto> newsItemsFromDb) {
         return newsItemsFromDb.stream()
                 .collect(Collectors.toMap(
                         NewsItemDto::getGuid,
                         Function.identity()));
-    }
-
-    private void updateItemIfRequired(NewsItemDto newsItemFromDb, NewsItemDto newsItemFromRss) {
-        NewsItem willBeUpdated = repository.findByGuid(newsItemFromDb.getGuid());
-
-        updateTitleIfChanged(newsItemFromDb.getTitle(), newsItemFromRss.getTitle(), willBeUpdated);
-        updateDescriptionIfChanged(newsItemFromDb.getDescription(), newsItemFromRss.getDescription(), willBeUpdated);
-        updatePublishedDateIfChanged(newsItemFromDb.getPublishedDate(), newsItemFromRss.getPublishedDate(), willBeUpdated);
-        updateImageUrlIfChanged(newsItemFromDb.getImageUrl(), newsItemFromRss.getImageUrl(), willBeUpdated);
-    }
-
-    private void updateTitleIfChanged(String titleFromDb, String titleFromRss, NewsItem willBeUpdated) {
-        if (!titleFromDb.equals(titleFromRss)) {
-            willBeUpdated.setTitle(titleFromRss);
-        }
-    }
-
-    private void updateDescriptionIfChanged(String descriptionFromDb,
-                                            String descriptionFromRss, NewsItem willBeUpdated) {
-        if (!descriptionFromDb.equals(descriptionFromRss)) {
-            willBeUpdated.setDescription(descriptionFromRss);
-        }
-    }
-
-    private void updatePublishedDateIfChanged(LocalDateTime publishedDateFromDb,
-                                              LocalDateTime publishedDateFromRss, NewsItem willBeUpdated) {
-        if (!publishedDateFromDb.equals(publishedDateFromRss)) {
-            willBeUpdated.setPublishedDate(publishedDateFromRss);
-        }
-    }
-
-    private void updateImageUrlIfChanged(String imageUrlFromDb,
-                                         String imageUrlFromRss, NewsItem willBeUpdated) {
-        if (!imageUrlFromDb.equals(imageUrlFromRss)) {
-            willBeUpdated.setImageUrl(imageUrlFromRss);
-        }
     }
 
     @NotNull
@@ -161,7 +103,6 @@ public class NewsItemService {
     private Predicate<String> ifGuidExistInDb() {
         return item -> repository.findByGuid(item) != null;
     }
-
 
 
     private Function<String, NewsItemDto> getFromDbAndConvertToDto() {
