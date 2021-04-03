@@ -36,6 +36,9 @@ import static com.csdm.adbooker.model.NewsItemParameters.RSS_FEED_SIZE_THRESHOLD
 public class NewsItemService {
 
     @Autowired
+    private NewsItemSavingService savingService;
+
+    @Autowired
     private NewsItemRepository repository;
 
     @Scheduled(fixedRate = RSS_FEED_INTERVAL_TIME)
@@ -53,18 +56,9 @@ public class NewsItemService {
         Map<String, NewsItemDto> newsItemsMapFromRss = createMapByItemsFrom(newsItemsFromRss);
 
         updateItemsInDbByRssFeeds(latestGuidsFromRssFeeds, newsItemsMapFromDb, newsItemsMapFromRss);
-        saveNewItemsInDb(latestGuidsFromRssFeeds, newsItemsMapFromDb, newsItemsMapFromRss);
+        savingService.saveNewItemsInDb(latestGuidsFromRssFeeds, newsItemsMapFromDb, newsItemsMapFromRss);
 
         log.info("Finished fetching rss feeds at {}", LocalDateTime.now());
-    }
-
-    private void saveNewItemsInDb(List<String> latestGuidsFromRssFeeds, Map<String, NewsItemDto> newsItemsMapFromDb, Map<String, NewsItemDto> newsItemsMapFromRss) {
-        List<NewsItem> entities = latestGuidsFromRssFeeds.stream()
-                .filter(ifItemExistsInDb(newsItemsMapFromDb))
-                .map(getNewsItemFunction(newsItemsMapFromRss))
-                .collect(Collectors.toList());
-
-        repository.saveAll(entities);
     }
 
     private void updateItemsInDbByRssFeeds(List<String> latestGuidsFromRssFeeds, Map<String, NewsItemDto> newsItemsMapFromDb, Map<String, NewsItemDto> newsItemsMapFromRss) {
@@ -77,21 +71,13 @@ public class NewsItemService {
         return guid -> updateItemIfRequired(newsItemsMapFromDb.get(guid), newsItemsMapFromRss.get(guid));
     }
 
-    private Predicate<String> ifItemExistsInDb(Map<String, NewsItemDto> newsItemsMapFromDb) {
-        return guid -> newsItemsMapFromDb.get(guid) == null;
-    }
+
 
     private Predicate<String> ifItemDoesNotExistInDb(Map<String, NewsItemDto> newsItemsMapFromDb) {
         return guid -> newsItemsMapFromDb.get(guid) != null;
     }
 
-    private Function<String, NewsItem> getNewsItemFunction(Map<String, NewsItemDto> newsItemsMapFromRss) {
-        return guid -> NewsItem.builder().title(newsItemsMapFromRss.get(guid).getTitle())
-                .guid(newsItemsMapFromRss.get(guid).getGuid())
-                .description(newsItemsMapFromRss.get(guid).getDescription())
-                .publishedDate(newsItemsMapFromRss.get(guid).getPublishedDate())
-                .imageUrl(newsItemsMapFromRss.get(guid).getImageUrl()).build();
-    }
+
 
     private Map<String, NewsItemDto> createMapByItemsFrom(List<NewsItemDto> newsItemsFromDb) {
         return newsItemsFromDb.stream()
