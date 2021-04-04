@@ -38,5 +38,4 @@ public class NewsItemSavingService {
                 .publishedDate(newsItemsMapFromRss.get(guid).getPublishedDate())
                 .imageUrl(newsItemsMapFromRss.get(guid).getImageUrl()).build();
     }
-
 }
