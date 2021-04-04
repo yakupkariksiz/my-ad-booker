@@ -14,8 +14,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static com.csdm.adbooker.model.NewsItemParameters.NEWS_FEED_URL;
+import static com.csdm.adbooker.model.NewsItemParameters.TIMEOUT_GETTING_RSS_FEEDS_SECONDS;
 
 @Slf4j
 @Service
@@ -45,7 +47,7 @@ public class RssFetcher {
 
         List<SyndEntry> syndEntries = null;
         try {
-            syndEntries = future.get();
+            syndEntries = future.get(TIMEOUT_GETTING_RSS_FEEDS_SECONDS, TimeUnit.SECONDS);
         } catch (Exception ex) {
             log.error(ex.getMessage());
         }
