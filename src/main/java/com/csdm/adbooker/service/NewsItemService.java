@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -46,6 +47,9 @@ public class NewsItemService {
         log.info("Started fetching rss feeds at {}", LocalDateTime.now());
 
         List<SyndEntry> entries = rssFetcher.makeHttpRequestAndGetRssEntries();
+        if (CollectionUtils.isEmpty(entries)) {
+            return;
+        }
         List<String> latestGuidsFromRssFeeds = collectGuidsFrom(entries);
 
         List<NewsItemDto> newsItemsFromDb = getNewsItemsFromDbBy(latestGuidsFromRssFeeds);
