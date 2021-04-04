@@ -3,6 +3,8 @@ package com.csdm.adbooker.service;
 import com.rometools.rome.feed.synd.SyndEntry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -16,6 +18,7 @@ import static com.csdm.adbooker.model.NewsItemParameters.TIMEOUT_GETTING_RSS_FEE
 @Service
 public class RssFetcher {
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<SyndEntry> makeHttpRequestAndGetRssEntries() {
         List<SyndEntry> syndEntries = null;
         try {
