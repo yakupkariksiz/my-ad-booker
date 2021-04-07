@@ -1,4 +1,4 @@
-package com.csdm.adbooker.service;
+package com.csdm.adbooker.newsItem;
 
 import com.rometools.rome.feed.synd.SyndEntry;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static com.csdm.adbooker.model.NewsItemParameters.TIMEOUT_GETTING_RSS_FEEDS_SECONDS;
+import static com.csdm.adbooker.newsItem.model.NewsItemParameters.TIMEOUT_GETTING_RSS_FEEDS_SECONDS;
 
 @Slf4j
 @Service
