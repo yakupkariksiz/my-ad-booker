@@ -1,8 +1,7 @@
-package com.csdm.adbooker.service;
+package com.csdm.adbooker.newsItem;
 
-import com.csdm.adbooker.model.NewsItem;
-import com.csdm.adbooker.model.NewsItemDto;
-import com.csdm.adbooker.repository.NewsItemRepository;
+import com.csdm.adbooker.newsItem.model.NewsItem;
+import com.csdm.adbooker.newsItem.model.NewsItemDto;
 import graphql.kickstart.tools.GraphQLQueryResolver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

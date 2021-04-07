@@ -1,4 +1,4 @@
-package com.csdm.adbooker.model;
+package com.csdm.adbooker.newsItem.model;
 
 public interface NewsItemParameters {
 

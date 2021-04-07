@@ -1,8 +1,7 @@
-package com.csdm.adbooker.service;
+package com.csdm.adbooker.newsItem;
 
-import com.csdm.adbooker.model.NewsItem;
-import com.csdm.adbooker.model.NewsItemDto;
-import com.csdm.adbooker.repository.NewsItemRepository;
+import com.csdm.adbooker.newsItem.model.NewsItem;
+import com.csdm.adbooker.newsItem.model.NewsItemDto;
 import com.rometools.rome.feed.synd.SyndEntry;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +14,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static com.csdm.adbooker.model.NewsItemParameters.RSS_FEED_SIZE_THRESHOLD;
+import static com.csdm.adbooker.newsItem.model.NewsItemParameters.RSS_FEED_SIZE_THRESHOLD;
 
 @Service
 public class NewsItemConverter {

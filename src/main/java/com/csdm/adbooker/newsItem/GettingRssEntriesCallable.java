@@ -1,4 +1,4 @@
-package com.csdm.adbooker.service;
+package com.csdm.adbooker.newsItem;
 
 import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
@@ -10,7 +10,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-import static com.csdm.adbooker.model.NewsItemParameters.NEWS_FEED_URL;
+import static com.csdm.adbooker.newsItem.model.NewsItemParameters.NEWS_FEED_URL;
 
 public class GettingRssEntriesCallable implements Callable<List<SyndEntry>> {
 

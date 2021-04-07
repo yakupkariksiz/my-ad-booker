@@ -1,6 +1,6 @@
-package com.csdm.adbooker.service;
+package com.csdm.adbooker.newsItem;
 
-import com.csdm.adbooker.model.NewsItemDto;
+import com.csdm.adbooker.newsItem.model.NewsItemDto;
 import com.rometools.rome.feed.synd.SyndEntry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-import static com.csdm.adbooker.model.NewsItemParameters.RSS_FEED_INTERVAL_TIME;
+import static com.csdm.adbooker.newsItem.model.NewsItemParameters.RSS_FEED_INTERVAL_TIME;
 
 @Slf4j
 @EnableScheduling
